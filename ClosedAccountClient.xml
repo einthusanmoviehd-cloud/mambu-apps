@@ -8,6 +8,6 @@
 <extensionpoint>
 <location>CLIENT_VIEW</location>
 <label>Closed Accounts</label>
-<url>https://einthusanmoviehd-cloud.github.io/mambu-apps/closed-accounts-client-view_1.html</url>
+<url>https://mambu-apps1.vercel.app/closed-accounts-client-view_1.html</url>
 </extensionpoint>
 </app>
