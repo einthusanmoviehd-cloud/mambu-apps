@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Closed Accounts</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Roboto', sans-serif; background: #f4f6f9; color: #333; font-size: 13px; }
+  a { color: #1a8ec2; text-decoration: none; cursor: pointer; }
+  a:hover { text-decoration: underline; }
+
+  /* ── Client identity strip ── */
+  .client-strip {
+    background: #fff;
+    border-bottom: 1px solid #dde2ea;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .client-avatar {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: #1a8ec2;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .client-info { flex: 1; }
+
+  .client-name {
+    font-size: 15px;
+    font-weight: 500;
+    color: #222;
+    margin-bottom: 3px;
+  }
+
+  .client-meta {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+
+  .client-meta-item {
+    font-size: 11px;
+    color: #7a8799;
+  }
+  .client-meta-item strong { color: #444; font-weight: 500; }
+
+  .client-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: #e8f8f1;
+    color: #1aaa6c;
+    border: 1px solid #b2e8cc;
+    flex-shrink: 0;
+  }
+  .client-status-dot { width: 6px; height: 6px; border-radius: 50%; background: #1aaa6c; }
+
+  /* ── Page body ── */
+  .page-body { padding: 18px 24px 40px; }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .section-title { font-size: 13px; font-weight: 500; color: #444; }
+  .section-count { font-size: 12px; color: #7a8799; margin-left: 8px; }
+
+  /* ── Account cards ── */
+  .accounts-list { display: flex; flex-direction: column; gap: 10px; }
+
+  .acct-card {
+    background: #fff;
+    border: 1px solid #dde2ea;
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: box-shadow 0.15s;
+  }
+  .acct-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
+  .acct-card.expanded { border-color: #b3d6ed; }
+
+  .acct-card-header {
+    display: flex;
+    align-items: center;
+    padding: 13px 16px;
+    gap: 16px;
+    user-select: none;
+  }
+
+  .acct-card-main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .acct-card-left { min-width: 130px; }
+  .acct-card-id { font-size: 13px; color: #1a8ec2; font-weight: 500; margin-bottom: 5px; }
+
+  .acct-card-product { flex: 1; min-width: 180px; }
+  .acct-card-product .prod-name { font-size: 13px; color: #333; }
+  .acct-card-product .prod-sub { font-size: 11px; color: #aab2bc; margin-top: 2px; }
+
+  .acct-card-balance { text-align: right; min-width: 105px; }
+  .acct-card-balance .bal-val { font-size: 13px; font-weight: 500; color: #222; }
+  .acct-card-balance .bal-lbl { font-size: 10px; color: #aab2bc; margin-top: 1px; }
+
+  .acct-card-dates { text-align: right; min-width: 130px; }
+  .acct-card-dates .dt { font-size: 11px; color: #7a8799; line-height: 1.7; }
+  .acct-card-dates .dt strong { font-weight: 500; color: #555; }
+
+  .pill { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .pill-closed  { background: #eff1f4; color: #7a8799; border: 1px solid #d5d9e0; }
+  .pill-loan    { background: #e8f4fb; color: #1a8ec2; }
+  .pill-savings { background: #e8f8f1; color: #1aaa6c; }
+
+  .acct-chevron { color: #aab2bc; font-size: 11px; transition: transform 0.2s; flex-shrink: 0; }
+  .acct-card.expanded .acct-chevron { transform: rotate(180deg); }
+
+  /* ── Expanded detail ── */
+  .acct-detail { display: none; border-top: 1px solid #eaecf0; }
+  .acct-card.expanded .acct-detail { display: block; }
+
+  .detail-fields {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px 20px;
+    padding: 14px 16px;
+    background: #fafbfc;
+    border-bottom: 1px solid #eaecf0;
+  }
+
+  .field-group { display: flex; flex-direction: column; gap: 3px; }
+  .field-label { font-size: 11px; color: #7a8799; }
+  .field-value { font-size: 12px; color: #222; }
+
+  /* Inner tabs */
+  .inner-tabs {
+    display: flex;
+    padding: 0 16px;
+    border-bottom: 1px solid #eaecf0;
+    background: #fff;
+  }
+  .inner-tab {
+    padding: 8px 14px 9px;
+    font-size: 12px;
+    color: #7a8799;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    user-select: none;
+  }
+  .inner-tab:hover:not(.active) { color: #555; }
+  .inner-tab.active { color: #1a8ec2; border-bottom-color: #1a8ec2; font-weight: 500; }
+
+  .inner-panel { display: none; }
+  .inner-panel.active { display: block; }
+
+  /* Transaction table */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 700px; }
+  thead th { background: #f9fafb; padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 700; color: #555d6b; border-bottom: 1px solid #eaecf0; white-space: nowrap; }
+  tbody tr { border-bottom: 1px solid #f0f2f5; transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #f7f9fc; }
+  tbody td { padding: 8px 12px; font-size: 12px; color: #333; vertical-align: middle; }
+  .td-id { color: #1a8ec2; font-weight: 500; }
+  .td-time { font-size: 11px; color: #aab2bc; }
+  .td-neg { color: #c0392b; font-weight: 500; }
+
+  /* Documents */
+  .docs-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 9px 16px; border-bottom: 1px solid #eaecf0; background: #fafbfc; }
+  .docs-toolbar span { font-size: 11px; color: #7a8799; }
+  .btn-upload { background: #1a8ec2; color: #fff; border: none; border-radius: 3px; padding: 4px 12px; font-size: 11px; font-family: 'Roboto', sans-serif; cursor: not-allowed; opacity: 0.55; }
+
+  .doc-row { display: flex; align-items: center; gap: 12px; padding: 9px 16px; border-bottom: 1px solid #f0f2f5; transition: background 0.1s; cursor: pointer; }
+  .doc-row:last-child { border-bottom: none; }
+  .doc-row:hover { background: #f7f9fc; }
+  .doc-icon { font-size: 18px; flex-shrink: 0; }
+  .doc-info { flex: 1; }
+  .doc-name { font-size: 12px; color: #1a8ec2; font-weight: 500; margin-bottom: 1px; }
+  .doc-meta { font-size: 11px; color: #aab2bc; }
+  .doc-size { font-size: 11px; color: #7a8799; white-space: nowrap; }
+  .doc-badge { font-size: 9px; font-weight: 600; padding: 1px 5px; border-radius: 3px; text-transform: uppercase; background: #e8f4fb; color: #1a8ec2; margin-left: 5px; }
+</style>
+</head>
+<body>
+
+<!-- Client identity strip -->
+<div class="client-strip">
+  <div class="client-avatar">RS</div>
+  <div class="client-info">
+    <div class="client-name">Rodrigo Salamanca</div>
+    <div class="client-meta">
+      <span class="client-meta-item">Client ID: <strong>CL-2019-004411</strong></span>
+      <span class="client-meta-item">Branch: <strong>Quezon City Branch</strong></span>
+      <span class="client-meta-item">Officer: <strong>Nena Castillo</strong></span>
+      <span class="client-meta-item">Member Since: <strong>12 Jan 2019</strong></span>
+    </div>
+  </div>
+  <div class="client-status">
+    <span class="client-status-dot"></span>Active Client
+  </div>
+</div>
+
+<!-- Accounts -->
+<div class="page-body">
+  <div class="section-header">
+    <span class="section-title">Closed Accounts</span>
+    <span class="section-count">3 accounts</span>
+  </div>
+  <div class="accounts-list" id="accountsList"></div>
+</div>
+
+<script>
+const SYM = '₱';
+
+const accounts = [
+  {
+    id: "734220198801",
+    type: "loan",
+    product: "Easy Sangla Loan",
+    productSub: "Collateral-based vehicle OR-CR pledge",
+    interestRate: "24.0%",
+    balance: 0.00,
+    originalAmount: 80000.00,
+    openedDate: "10 Feb 2022",
+    closedDate: "15 Aug 2023",
+    branch: "Quezon City Branch",
+    officer: "Nena Castillo",
+    closureReason: "Fully Repaid",
+    postingFreq: "Monthly",
+    compoundFreq: "Monthly",
+    docs: [
+      { name:"Easy Sangla Loan Agreement.pdf",       type:"PDF",  size:"1.0 MB", uploaded:"11 Feb 2022", by:"NENA CASTILLO" },
+      { name:"OR-CR Photocopy – Honda City 2019.pdf",type:"PDF",  size:"510 KB", uploaded:"10 Feb 2022", by:"NENA CASTILLO" },
+      { name:"Valid ID – Rodrigo Salamanca.pdf",     type:"PDF",  size:"290 KB", uploaded:"10 Feb 2022", by:"NENA CASTILLO" },
+      { name:"Loan Closure Certificate.pdf",         type:"PDF",  size:"210 KB", uploaded:"15 Aug 2023", by:"NENA CASTILLO" },
+    ],
+    transactions: [
+      { id:"6310001", txDate:"15 Aug 2023", entryDate:"15 Aug 2023", entryTime:"10:30:00", amount:-4855.33, balance:0.00,     type:"Repayment",    payment:"Cash",         user:"NENA CASTILLO" },
+      { id:"6200441", txDate:"15 Jul 2023", entryDate:"15 Jul 2023", entryTime:"10:00:00", amount:-4855.33, balance:4855.33,  type:"Repayment",    payment:"Cash",         user:"NENA CASTILLO" },
+      { id:"6100220", txDate:"15 Jan 2023", entryDate:"15 Jan 2023", entryTime:"10:00:00", amount:-4855.33, balance:29131.98, type:"Repayment",    payment:"Cash",         user:"NENA CASTILLO" },
+      { id:"5980033", txDate:"15 Jul 2022", entryDate:"15 Jul 2022", entryTime:"10:15:00", amount:-4855.33, balance:58263.96, type:"Repayment",    payment:"Cash",         user:"NENA CASTILLO" },
+      { id:"5811002", txDate:"15 Mar 2022", entryDate:"15 Mar 2022", entryTime:"14:00:00", amount:-4855.33, balance:75941.35, type:"Repayment",    payment:"Cash",         user:"NENA CASTILLO" },
+      { id:"5700001", txDate:"10 Feb 2022", entryDate:"10 Feb 2022", entryTime:"09:00:00", amount:80000.00, balance:80000.00, type:"Disbursement", payment:"Cash",         user:"NENA CASTILLO" },
+    ]
+  },
+  {
+    id: "511334027760",
+    type: "loan",
+    product: "Motor Cycle Loan",
+    productSub: "Two-wheel vehicle financing",
+    interestRate: "15.0%",
+    balance: 0.00,
+    originalAmount: 55000.00,
+    openedDate: "05 Mar 2020",
+    closedDate: "10 Jun 2022",
+    branch: "Quezon City Branch",
+    officer: "Nena Castillo",
+    closureReason: "Fully Repaid",
+    postingFreq: "Monthly",
+    compoundFreq: "Monthly",
+    docs: [
+      { name:"Motorcycle Loan Agreement.pdf",       type:"PDF",  size:"880 KB", uploaded:"06 Mar 2020", by:"NENA CASTILLO" },
+      { name:"Sales Invoice – Yamaha Mio 2020.pdf", type:"PDF",  size:"350 KB", uploaded:"05 Mar 2020", by:"NENA CASTILLO" },
+      { name:"OR-CR Copy – Motorcycle.pdf",         type:"PDF",  size:"260 KB", uploaded:"06 Mar 2020", by:"NENA CASTILLO" },
+      { name:"Repayment Schedule.xlsx",             type:"XLSX", size:"95 KB",  uploaded:"06 Mar 2020", by:"SYSTEM" },
+      { name:"Loan Closure Certificate.pdf",        type:"PDF",  size:"200 KB", uploaded:"10 Jun 2022", by:"NENA CASTILLO" },
+    ],
+    transactions: [
+      { id:"4910001", txDate:"10 Jun 2022", entryDate:"10 Jun 2022", entryTime:"11:00:00", amount:-1644.10, balance:0.00,     type:"Repayment",    payment:"Cash",         user:"NENA CASTILLO" },
+      { id:"4800221", txDate:"10 May 2022", entryDate:"10 May 2022", entryTime:"10:00:00", amount:-1644.10, balance:1644.10,  type:"Repayment",    payment:"Cash",         user:"NENA CASTILLO" },
+      { id:"4680112", txDate:"10 Nov 2021", entryDate:"10 Nov 2021", entryTime:"10:00:00", amount:-1644.10, balance:9864.60,  type:"Repayment",    payment:"Cash",         user:"NENA CASTILLO" },
+      { id:"4570001", txDate:"10 May 2021", entryDate:"10 May 2021", entryTime:"10:00:00", amount:-1644.10, balance:22197.35, type:"Repayment",    payment:"Cash",         user:"NENA CASTILLO" },
+      { id:"4450441", txDate:"10 Sep 2020", entryDate:"10 Sep 2020", entryTime:"10:00:00", amount:-100.00,  balance:34530.10, type:"Fee",          payment:"System",       user:"SYSTEM" },
+      { id:"4300001", txDate:"05 Mar 2020", entryDate:"05 Mar 2020", entryTime:"08:30:00", amount:55000.00, balance:55000.00, type:"Disbursement", payment:"Bank Transfer", user:"NENA CASTILLO" },
+    ]
+  },
+  {
+    id: "388110094455",
+    type: "loan",
+    product: "Micro Business Loan",
+    productSub: "Small enterprise working capital",
+    interestRate: "20.0%",
+    balance: 0.00,
+    originalAmount: 25000.00,
+    openedDate: "15 Jan 2019",
+    closedDate: "20 Mar 2021",
+    branch: "Quezon City Branch",
+    officer: "Nena Castillo",
+    closureReason: "Fully Repaid",
+    postingFreq: "Monthly",
+    compoundFreq: "Monthly",
+    docs: [
+      { name:"Micro Business Loan Agreement.pdf",   type:"PDF",  size:"950 KB", uploaded:"16 Jan 2019", by:"NENA CASTILLO" },
+      { name:"Business Permit – 2019.pdf",          type:"PDF",  size:"380 KB", uploaded:"15 Jan 2019", by:"NENA CASTILLO" },
+      { name:"Barangay Clearance.pdf",              type:"PDF",  size:"175 KB", uploaded:"15 Jan 2019", by:"NENA CASTILLO" },
+      { name:"Loan Closure Certificate.pdf",        type:"PDF",  size:"195 KB", uploaded:"20 Mar 2021", by:"NENA CASTILLO" },
+    ],
+    transactions: [
+      { id:"3120001", txDate:"20 Mar 2021", entryDate:"20 Mar 2021", entryTime:"10:00:00", amount:-1231.55, balance:0.00,     type:"Repayment",    payment:"Cash",         user:"NENA CASTILLO" },
+      { id:"3010441", txDate:"20 Feb 2021", entryDate:"20 Feb 2021", entryTime:"10:00:00", amount:-1231.55, balance:1231.55,  type:"Repayment",    payment:"Cash",         user:"NENA CASTILLO" },
+      { id:"2890220", txDate:"20 Aug 2020", entryDate:"20 Aug 2020", entryTime:"10:00:00", amount:-1231.55, balance:8620.85,  type:"Repayment",    payment:"Cash",         user:"NENA CASTILLO" },
+      { id:"2770112", txDate:"20 Feb 2020", entryDate:"20 Feb 2020", entryTime:"10:00:00", amount:-75.00,   balance:16231.75, type:"Fee",          payment:"System",       user:"SYSTEM" },
+      { id:"2640001", txDate:"20 Aug 2019", entryDate:"20 Aug 2019", entryTime:"10:00:00", amount:-1231.55, balance:18926.15, type:"Repayment",    payment:"Cash",         user:"NENA CASTILLO" },
+      { id:"2500441", txDate:"15 Jan 2019", entryDate:"15 Jan 2019", entryTime:"08:30:00", amount:25000.00, balance:25000.00, type:"Disbursement", payment:"Bank Transfer", user:"NENA CASTILLO" },
+    ]
+  }
+];
+
+const docIcons = { PDF:"📄", XLSX:"📊", DOC:"📝" };
+
+function f(v) {
+  return SYM + ' ' + Math.abs(v).toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function toggleCard(id) {
+  document.getElementById('card_'+id).classList.toggle('expanded');
+}
+
+function switchTab(id, tab) {
+  ['activity','documents'].forEach(t => {
+    document.getElementById('itab_'+t+'_'+id).classList.toggle('active', t===tab);
+    document.getElementById('ipanel_'+t+'_'+id).classList.toggle('active', t===tab);
+  });
+}
+
+function render() {
+  document.getElementById('accountsList').innerHTML = accounts.map(a => {
+
+    const txRows = a.transactions.map(t => `
+      <tr>
+        <td class="td-id">${t.id}</td>
+        <td>${t.txDate}</td>
+        <td>${t.entryDate}<br><span class="td-time">${t.entryTime}</span></td>
+        <td class="${t.amount < 0 ? 'td-neg' : ''}">${t.amount < 0 ? '– '+f(-t.amount) : f(t.amount)}</td>
+        <td>${f(t.balance)}</td>
+        <td>${t.type}</td>
+        <td>${t.payment}</td>
+        <td>${t.user}</td>
+      </tr>`).join('');
+
+    const docRows = a.docs.map(d => `
+      <div class="doc-row">
+        <div class="doc-icon">${docIcons[d.type]||'📎'}</div>
+        <div class="doc-info">
+          <div class="doc-name">${d.name}<span class="doc-badge">${d.type}</span></div>
+          <div class="doc-meta">Uploaded ${d.uploaded} &nbsp;·&nbsp; ${d.by}</div>
+        </div>
+        <div class="doc-size">${d.size}</div>
+      </div>`).join('');
+
+    return `
+      <div class="acct-card" id="card_${a.id}">
+        <div class="acct-card-header" onclick="toggleCard('${a.id}')">
+          <div class="acct-card-main">
+            <div class="acct-card-left">
+              <div class="acct-card-id">${a.id}</div>
+              <div style="display:flex;gap:5px;margin-top:4px">
+                <span class="pill pill-closed">Closed</span>
+                <span class="pill pill-${a.type}">${a.type}</span>
+              </div>
+            </div>
+            <div class="acct-card-product">
+              <div class="prod-name">${a.product}</div>
+              <div class="prod-sub">${a.productSub}</div>
+            </div>
+            <div class="acct-card-balance">
+              <div class="bal-val">${f(a.balance)}</div>
+              <div class="bal-lbl">Closing Balance</div>
+            </div>
+            <div class="acct-card-dates">
+              <div class="dt"><strong>Opened:</strong> ${a.openedDate}</div>
+              <div class="dt"><strong>Closed:</strong> ${a.closedDate}</div>
+            </div>
+          </div>
+          <div class="acct-chevron">▼</div>
+        </div>
+
+        <div class="acct-detail">
+          <div class="detail-fields">
+            <div class="field-group">
+              <span class="field-label">Status</span>
+              <span class="field-value"><span class="pill pill-closed">Closed</span></span>
+            </div>
+            <div class="field-group">
+              <span class="field-label">Interest Rate</span>
+              <span class="field-value">${a.interestRate}</span>
+            </div>
+            <div class="field-group">
+              <span class="field-label">Original Amount</span>
+              <span class="field-value">${f(a.originalAmount)}</span>
+            </div>
+            <div class="field-group">
+              <span class="field-label">Posting Frequency</span>
+              <span class="field-value">${a.postingFreq}</span>
+            </div>
+            <div class="field-group">
+              <span class="field-label">Compound Frequency</span>
+              <span class="field-value">${a.compoundFreq}</span>
+            </div>
+            <div class="field-group">
+              <span class="field-label">Branch</span>
+              <span class="field-value">${a.branch}</span>
+            </div>
+            <div class="field-group">
+              <span class="field-label">Account Officer</span>
+              <span class="field-value">${a.officer}</span>
+            </div>
+            <div class="field-group">
+              <span class="field-label">Opened Date</span>
+              <span class="field-value">${a.openedDate}</span>
+            </div>
+            <div class="field-group">
+              <span class="field-label">Closed Date</span>
+              <span class="field-value">${a.closedDate}</span>
+            </div>
+            <div class="field-group">
+              <span class="field-label">Closure Reason</span>
+              <span class="field-value">${a.closureReason}</span>
+            </div>
+          </div>
+
+          <div class="inner-tabs">
+            <div class="inner-tab active" id="itab_activity_${a.id}" onclick="switchTab('${a.id}','activity')">Activity</div>
+            <div class="inner-tab" id="itab_documents_${a.id}" onclick="switchTab('${a.id}','documents')">Documents</div>
+          </div>
+
+          <div class="inner-panel active" id="ipanel_activity_${a.id}">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th><th>Transaction Date</th><th>Entry Time</th>
+                    <th>Amount (${SYM})</th><th>Balance (${SYM})</th>
+                    <th>Transaction</th><th>Payment Type</th><th>User</th>
+                  </tr>
+                </thead>
+                <tbody>${txRows}</tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="inner-panel" id="ipanel_documents_${a.id}">
+            <div class="docs-toolbar">
+              <span>${a.docs.length} document${a.docs.length!==1?'s':''}</span>
+              <button class="btn-upload" disabled>Upload Document</button>
+            </div>
+            ${docRows}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+render();
+document.getElementById('card_'+accounts[0].id).classList.add('expanded');
+</script>
+</body>
+</html>
