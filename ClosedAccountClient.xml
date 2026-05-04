@@ -3,11 +3,11 @@
 <name>Closed Accounts</name>
 <provider>mbuarunnair.sandbox.mambu.com</provider>
 <description>Display closed account for user</description>
-<installUrl>https://einthusanmoviehd-cloud.github.io/mambu-apps/closed-accounts-client-view_1.html</installUrl>
-<uninstallUrl>https://einthusanmoviehd-cloud.github.io/mambu-apps/closed-accounts-client-view_1.html</uninstallUrl>
+<installUrl>https://mambu-apps1.vercel.app/api/closed-accounts</installUrl>
+<uninstallUrl>https://mambu-apps1.vercel.app/api/closed-accounts</uninstallUrl>
 <extensionpoint>
 <location>CLIENT_VIEW</location>
 <label>Closed Accounts</label>
-<url>https://mambu-apps1.vercel.app/closed-accounts-client-view_1.html</url>
+<url>https://mambu-apps1.vercel.app/api/closed-accounts</url>
 </extensionpoint>
 </app>
