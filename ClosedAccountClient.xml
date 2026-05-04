@@ -1,0 +1,13 @@
+<app>
+<id>MambuApp_CreditDecision</id>
+<name>Closed Accounts</name>
+<provider>mbuarunnair.sandbox.mambu.com</provider>
+<description>Display closed account for user</description>
+<installUrl>https://raw.githubusercontent.com/einthusanmoviehd-cloud/mambu-apps/refs/heads/main/closed-accounts-client-view_1.html</installUrl>
+<uninstallUrl>https://raw.githubusercontent.com/einthusanmoviehd-cloud/mambu-apps/refs/heads/main/closed-accounts-client-view_1.html</uninstallUrl>
+<extensionpoint>
+<location>CLIENT_VIEW</location>
+<label>Credit Decision Report</label>
+<url>https://raw.githubusercontent.com/einthusanmoviehd-cloud/mambu-apps/refs/heads/main/closed-accounts-client-view_1.html</url>
+</extensionpoint>
+</app>
