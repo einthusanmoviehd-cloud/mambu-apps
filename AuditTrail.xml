@@ -1,0 +1,13 @@
+<app>
+<id>Audit_Trail</id>
+<name>Audit Trail</name>
+<provider>mbuarunnair.sandbox.mambu.com</provider>
+<description>Display Audit trail</description>
+<installUrl>https://mambu-apps1.vercel.app/api/audit-trail</installUrl>
+<uninstallUrl>https://mambu-apps1.vercel.app/api/audit-trail</uninstallUrl>
+<extensionpoint>
+<location>REPORTING_VIEW</location>
+<label>Audit Trail</label>
+<url>https://mambu-apps1.vercel.app/api/closed-accounts</url>
+</extensionpoint>
+</app>
