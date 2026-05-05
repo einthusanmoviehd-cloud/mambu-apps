@@ -8,6 +8,6 @@
 <extensionpoint>
 <location>REPORTING_VIEW</location>
 <label>Audit Trail</label>
-<url>https://mambu-apps1.vercel.app/api/closed-accounts</url>
+<url>https://mambu-apps1.vercel.app/api/audit-trail</url>
 </extensionpoint>
 </app>
