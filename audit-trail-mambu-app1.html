@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Audit Trail</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Roboto', sans-serif; background: #f4f6f9; color: #333; font-size: 13px; }
+
+  .filter-bar {
+    background: #fff; border-bottom: 1px solid #dde2ea;
+    padding: 12px 24px; display: flex; align-items: center;
+    gap: 12px; flex-wrap: wrap;
+  }
+  .fg { display: flex; align-items: center; gap: 5px; }
+  .filter-bar label { font-size: 11px; color: #7a8799; white-space: nowrap; }
+  .filter-bar input[type="datetime-local"],
+  .filter-bar input[type="text"],
+  .filter-bar select {
+    border: 1px solid #cdd3db; border-radius: 4px;
+    padding: 5px 9px; font-family: 'Roboto', sans-serif;
+    font-size: 12px; color: #333; background: #f9fafb;
+    outline: none; height: 30px; transition: border-color 0.15s;
+  }
+  .filter-bar input:focus, .filter-bar select:focus { border-color: #1a8ec2; background: #fff; }
+  .btn {
+    height: 30px; padding: 0 16px; border: none; border-radius: 4px;
+    font-family: 'Roboto', sans-serif; font-size: 12px; font-weight: 500;
+    cursor: pointer; transition: background 0.15s; display: flex; align-items: center; gap: 6px;
+  }
+  .btn-primary { background: #1a8ec2; color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: #1479a8; }
+  .btn-primary:disabled { opacity: 0.65; cursor: not-allowed; }
+  .btn-secondary { background: #eff1f4; color: #555d6b; border: 1px solid #d5d9e0; }
+  .btn-secondary:hover { background: #e4e7ec; }
+  .divider { width: 1px; height: 20px; background: #dde2ea; flex-shrink: 0; }
+  .result-count { margin-left: auto; font-size: 11px; color: #7a8799; white-space: nowrap; }
+
+  .spinner {
+    width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: #fff; border-radius: 50%;
+    animation: spin 0.7s linear infinite; display: none;
+  }
+  .spinner.on { display: block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .summary-bar {
+    min-height: 42px; display: flex; gap: 10px;
+    padding: 10px 24px; background: #f4f6f9; flex-wrap: wrap; align-items: center;
+  }
+  .chip {
+    display: flex; align-items: center; gap: 6px;
+    background: #fff; border: 1px solid #dde2ea; border-radius: 4px;
+    padding: 4px 11px; font-size: 11px; color: #555d6b;
+    cursor: pointer; transition: border-color 0.15s, background 0.15s; user-select: none;
+  }
+  .chip:hover { border-color: #1a8ec2; }
+  .chip.active { border-color: #1a8ec2; background: #e8f4fb; color: #1a8ec2; }
+  .chip-count { font-size: 11px; font-weight: 700; color: #1a8ec2; }
+
+  .content { padding: 0 24px 24px; }
+
+  .state-panel {
+    background: #fff; border: 1px solid #dde2ea; border-radius: 4px;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 70px 20px; gap: 12px; color: #aab2bc;
+  }
+  .state-icon { font-size: 40px; opacity: 0.3; }
+  .state-msg { font-size: 13px; }
+  .state-sub { font-size: 11px; color: #cdd3db; }
+  .loading-bar-wrap { width: 200px; height: 3px; background: #eaecf0; border-radius: 2px; overflow: hidden; }
+  .loading-bar { height: 100%; width: 0%; background: #1a8ec2; border-radius: 2px; transition: width 0.3s ease; }
+
+  .table-wrap { display: none; background: #fff; border: 1px solid #dde2ea; border-radius: 4px; overflow: hidden; }
+  .table-wrap.visible { display: block; }
+  .table-scroll { overflow-x: auto; }
+
+  table { width: 100%; border-collapse: collapse; min-width: 900px; }
+  thead th {
+    background: #f9fafb; padding: 9px 12px; text-align: left;
+    font-size: 11px; font-weight: 700; color: #555d6b;
+    border-bottom: 1px solid #dde2ea; white-space: nowrap;
+    cursor: pointer; user-select: none;
+  }
+  thead th:hover { background: #f0f2f5; }
+  thead th.sorted { color: #1a8ec2; }
+  thead th .si { margin-left: 3px; font-size: 10px; color: #aab2bc; }
+  thead th.sorted .si { color: #1a8ec2; }
+
+  tbody tr { border-bottom: 1px solid #f0f2f5; transition: background 0.1s; cursor: pointer; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #f7f9fc; }
+  tbody tr.row-exp { background: #f0f7fc; }
+
+  tbody td { padding: 9px 12px; font-size: 12px; color: #333; vertical-align: middle; }
+
+  .td-time .dp { font-weight: 500; color: #333; font-size: 12px; }
+  .td-time .tp { color: #aab2bc; font-size: 11px; margin-top: 1px; }
+
+  .badge {
+    display: inline-block; font-size: 10px; font-weight: 700;
+    padding: 2px 7px; border-radius: 3px; text-transform: uppercase;
+    letter-spacing: 0.04em; text-align: center;
+  }
+  .m-GET    { background: #e8f4fb; color: #1a8ec2; }
+  .m-POST   { background: #e8f8f1; color: #1aaa6c; }
+  .m-PUT    { background: #fef3e5; color: #e08a00; }
+  .m-DELETE { background: #fdf0ef; color: #c0392b; }
+  .m-PATCH  { background: #f3edfb; color: #7c4dbe; }
+  .s-UI     { background: #eff1f4; color: #555d6b; }
+  .s-API    { background: #f3edfb; color: #7c4dbe; }
+  .s-2xx    { background: #e8f8f1; color: #1aaa6c; min-width: 36px; }
+  .s-201    { background: #d4f5e5; color: #0e7a4a; min-width: 36px; }
+  .s-4xx    { background: #fdf0ef; color: #c0392b; min-width: 36px; }
+  .s-5xx    { background: #fdf0ef; color: #c0392b; min-width: 36px; }
+
+  .td-resource { font-weight: 500; color: #333; text-transform: capitalize; }
+  .td-uri { font-size: 11px; color: #7a8799; font-family: monospace; }
+  .td-user { font-weight: 500; color: #1a8ec2; }
+  .td-ip { font-size: 11px; color: #aab2bc; font-family: monospace; }
+  .td-anon { color: #aab2bc; font-style: italic; }
+  .chevron { font-size: 10px; color: #aab2bc; transition: transform 0.18s; display: inline-block; }
+  .row-exp .chevron { transform: rotate(180deg); }
+
+  .payload-row td { padding: 0; background: #f7f9fc; border-bottom: 1px solid #dde2ea; }
+  .payload-inner { padding: 12px 16px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .payload-block { flex: 1; min-width: 240px; }
+  .payload-label { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #7a8799; margin-bottom: 5px; }
+  .payload-code {
+    background: #fff; border: 1px solid #dde2ea; border-radius: 4px;
+    padding: 8px 10px; font-family: monospace; font-size: 11px; color: #333;
+    white-space: pre-wrap; word-break: break-all; max-height: 180px;
+    overflow-y: auto; line-height: 1.5;
+  }
+  .payload-code::-webkit-scrollbar { width: 4px; }
+  .payload-code::-webkit-scrollbar-thumb { background: #d0d5dc; border-radius: 2px; }
+
+  .pagination {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; border-top: 1px solid #eaecf0; background: #fafbfc;
+  }
+  .pagination-info { font-size: 11px; color: #7a8799; }
+  .page-btns { display: flex; gap: 4px; }
+  .page-btn {
+    height: 26px; min-width: 26px; padding: 0 8px;
+    border: 1px solid #d5d9e0; border-radius: 3px; background: #fff;
+    font-size: 11px; color: #555d6b; cursor: pointer; transition: all 0.12s;
+    font-family: 'Roboto', sans-serif;
+  }
+  .page-btn:hover:not(:disabled) { border-color: #1a8ec2; color: #1a8ec2; }
+  .page-btn.active { background: #1a8ec2; border-color: #1a8ec2; color: #fff; }
+  .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<div class="filter-bar">
+  <div class="fg"><label>From</label><input type="datetime-local" id="fromDate" value="2026-05-05T00:00"/></div>
+  <div class="fg"><label>To</label><input type="datetime-local" id="toDate" value="2026-05-05T02:00"/></div>
+  <div class="divider"></div>
+  <div class="fg"><label>User</label><input type="text" id="fUser" placeholder="All users" style="width:110px"/></div>
+  <div class="fg">
+    <label>Source</label>
+    <select id="fSource"><option value="">All</option><option value="UI">UI</option><option value="API">API</option></select>
+  </div>
+  <div class="fg">
+    <label>Method</label>
+    <select id="fMethod"><option value="">All</option><option value="GET">GET</option><option value="POST">POST</option><option value="PUT">PUT</option><option value="DELETE">DELETE</option></select>
+  </div>
+  <div class="fg"><label>Resource</label><select id="fResource"><option value="">All</option></select></div>
+  <div class="fg">
+    <label>Status</label>
+    <select id="fStatus"><option value="">All</option><option value="2xx">2xx / 201</option><option value="4xx">4xx Error</option></select>
+  </div>
+  <button class="btn btn-primary" id="searchBtn" onclick="doSearch()">
+    <span class="spinner" id="spin"></span>
+    <span id="btnTxt">Search</span>
+  </button>
+  <button class="btn btn-secondary" onclick="resetAll()">Reset</button>
+  <span class="result-count" id="resultCount"></span>
+</div>
+
+<div class="summary-bar" id="summaryBar"></div>
+
+<div class="content">
+  <div class="state-panel" id="stInit">
+    <div class="state-icon">🔍</div>
+    <div class="state-msg">Select a date range and click Search</div>
+    <div class="state-sub">Audit events will appear here</div>
+  </div>
+  <div class="state-panel" id="stLoad" style="display:none">
+    <div class="state-icon" style="opacity:0.2">📋</div>
+    <div class="state-msg" id="loadMsg">Fetching audit events…</div>
+    <div class="loading-bar-wrap"><div class="loading-bar" id="loadBar"></div></div>
+    <div class="state-sub" id="loadSub">Connecting to audit trail API</div>
+  </div>
+  <div class="state-panel" id="stEmpty" style="display:none">
+    <div class="state-icon">📭</div>
+    <div class="state-msg">No events found for the selected filters</div>
+    <div class="state-sub">Try adjusting the date range or clearing filters</div>
+  </div>
+  <div class="table-wrap" id="tblWrap">
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:28px"></th>
+            <th onclick="sortBy('occurred_at')" id="th-occurred_at">Timestamp <span class="si">↕</span></th>
+            <th onclick="sortBy('event_source')" id="th-event_source">Source <span class="si">↕</span></th>
+            <th onclick="sortBy('request_method')" id="th-request_method">Method <span class="si">↕</span></th>
+            <th onclick="sortBy('resource')" id="th-resource">Resource <span class="si">↕</span></th>
+            <th>Endpoint</th>
+            <th onclick="sortBy('response_code')" id="th-response_code">Status <span class="si">↕</span></th>
+            <th onclick="sortBy('username')" id="th-username">User <span class="si">↕</span></th>
+            <th>IP Address</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="pagination" id="pgn"></div>
+  </div>
+</div>
+
+<script>
+// ── Merged deduplicated dataset from both API responses ────────────────────
+const ALL = [
+  // ── New events from second response (loan origination flow) ──
+  {occurred_at:"2026-05-05T01:34:30.437Z",response_code:201,resource:"documents",event_source:"API",client_ip:"18.138.95.218",request_method:"POST",request_payload:"{}",resource_fragment:"/api/documents",request_uri:"/api/documents",username:"testapiconsumer"},
+  {occurred_at:"2026-05-05T01:34:22.354Z",response_code:201,resource:"clients",event_source:"API",client_ip:"18.138.95.218",request_method:"POST",request_payload:"{}",resource_fragment:"/api/clients/421407819/documents",request_uri:"/api/clients/421407819/documents",username:"testapiconsumer"},
+  {occurred_at:"2026-05-05T01:34:09.395Z",response_code:201,resource:"loans",event_source:"API",client_ip:"18.138.95.218",request_method:"POST",request_payload:"{\"expectedDisbursementDate\":\"2026-04-04T00:00:00+11:00\",\"fees\":[{\"amount\":100.0,\"predefinedFeeKey\":\"8a8987aa9dec42b1019deda73e9e04cb\"},{\"predefinedFeeKey\":\"8a8987aa9dec42b1019deda73e9e04cc\"}]}",resource_fragment:"/api/loans/103030393939/disbursement-transactions",request_uri:"/api/loans/103030393939/disbursement-transactions",username:"testapiconsumer"},
+  {occurred_at:"2026-05-05T01:33:53.820Z",response_code:400,resource:"loans",event_source:"API",client_ip:"18.138.95.218",request_method:"POST",request_payload:"{\"firstRepaymentDate\":\"2026-05-04T00:00:00+10:00\",\"expectedDisbursementDate\":\"2026-04-04T00:00:00+11:00\",\"fees\":[{\"amount\":100.0,\"predefinedFeeKey\":\"8a8987aa9dec42b1019deda73e9e04cb\"},{\"predefinedFeeKey\":\"8a8987aa9dec42b1019deda73e9e04cc\"}]}",resource_fragment:"/api/loans/103030393939/disbursement-transactions",request_uri:"/api/loans/103030393939/disbursement-transactions",response_payload:"{\"errors\":[{\"errorCode\":194,\"errorReason\":\"FIRST_REPAYMENT_DATE_BEFORE_EXPECTED_DISBURSEMENT_DATE\"}]}",username:"testapiconsumer"},
+  {occurred_at:"2026-05-05T01:33:36.215Z",response_code:400,resource:"loans",event_source:"API",client_ip:"18.138.95.218",request_method:"POST",request_payload:"{\"firstRepaymentDate\":\"2026-05-04T00:00:00+10:00\",\"expectedDisbursementDate\":\"2026-04-04T00:00:00+11:00\",\"fees\":[{\"amount\":100.0,\"predefinedFeeKey\":\"8a0138e99de43f94019df20cfcfc1f30\"},{\"predefinedFeeKey\":\"8a0138e99de43f94019df31c2c055474\"}]}",resource_fragment:"/api/loans/103030393939/disbursement-transactions",request_uri:"/api/loans/103030393939/disbursement-transactions",response_payload:"{\"errors\":[{\"errorCode\":251,\"errorSource\":\"The fee with key 8a0138e99de43f94019df20cfcfc1f30 is not defined on product as disbursement fee\",\"errorReason\":\"INVALID_FEE_KEY\"}]}",username:"testapiconsumer"},
+  {occurred_at:"2026-05-05T01:33:29.580Z",response_code:400,resource:"loans",event_source:"API",client_ip:"18.138.95.218",request_method:"POST",request_payload:"{\"firstRepaymentDate\":\"2026-05-04T00:00:00+11:00\",\"expectedDisbursementDate\":\"2026-04-04T00:00:00+11:00\"}",resource_fragment:"/api/loans/103030393939/disbursement-transactions",request_uri:"/api/loans/103030393939/disbursement-transactions",response_payload:"{\"errors\":[{\"errorCode\":4,\"errorSource\":\"Invalid date offset for value 2026-05-04T00:00:00+11:00 of firstRepaymentDate org offset is +10:00\",\"errorReason\":\"INVALID_PARAMETERS\"}]}",username:"testapiconsumer"},
+  {occurred_at:"2026-05-05T01:33:21.382Z",response_code:400,resource:"loans",event_source:"API",client_ip:"18.138.95.218",request_method:"POST",request_payload:"{\"firstRepaymentDate\":\"2026-05-04T00:00:00+11:00\",\"expectedDisbursementDate\":\"2026-04-04T00:00:00+10:00\"}",resource_fragment:"/api/loans/103030393939/disbursement-transactions",request_uri:"/api/loans/103030393939/disbursement-transactions",response_payload:"{\"errors\":[{\"errorCode\":4,\"errorSource\":\"Invalid date offset for value 2026-05-04T00:00:00+11:00 of firstRepaymentDate org offset is +10:00\",\"errorReason\":\"INVALID_PARAMETERS\"}]}",username:"testapiconsumer"},
+  {occurred_at:"2026-05-05T01:33:12.035Z",response_code:400,resource:"loans",event_source:"API",client_ip:"18.138.95.218",request_method:"POST",request_payload:"{\"firstRepaymentDate\":\"2026-05-04T00:00:00+11:00\",\"expectedDisbursementDate\":\"2026-04-04T00:00:00+11:00\"}",resource_fragment:"/api/loans/103030393939/disbursement-transactions",request_uri:"/api/loans/103030393939/disbursement-transactions",response_payload:"{\"errors\":[{\"errorCode\":4,\"errorSource\":\"Invalid date offset for value 2026-05-04T00:00:00+11:00 of firstRepaymentDate org offset is +10:00\",\"errorReason\":\"INVALID_PARAMETERS\"}]}",username:"testapiconsumer"},
+  {occurred_at:"2026-05-05T01:32:38.781Z",response_code:400,resource:"loans",event_source:"API",client_ip:"18.138.95.218",request_method:"POST",request_payload:"{\"firstRepaymentDate\":\"2026-06-10T00:00:00Z\",\"expectedDisbursementDate\":\"2026-04-04T00:00:00Z\"}",resource_fragment:"/api/loans/103030393939/disbursement-transactions",request_uri:"/api/loans/103030393939/disbursement-transactions",response_payload:"{\"errors\":[{\"errorCode\":4,\"errorSource\":\"Invalid date offset for value 2026-06-10T00:00:00Z of firstRepaymentDate org offset is +10:00\",\"errorReason\":\"INVALID_PARAMETERS\"}]}",username:"testapiconsumer"},
+  {occurred_at:"2026-05-05T01:32:32.881Z",response_code:200,resource:"loans",event_source:"API",client_ip:"18.138.95.218",request_method:"POST",request_payload:"{\"action\":\"APPROVE\"}",resource_fragment:"/api/loans/103030393939:changeState",request_uri:"/api/loans/103030393939:changeState",username:"testapiconsumer"},
+  {occurred_at:"2026-05-05T01:32:25.589Z",response_code:201,resource:"loans",event_source:"API",client_ip:"18.138.95.218",request_method:"POST",request_payload:"{\"accountHolderType\":\"CLIENT\",\"id\":\"103030393939\",\"accountHolderKey\":\"8a8986679df58f40019df5c3ab4a04f6\",\"productTypeKey\":\"8a8987aa9dec42b1019ded98d5380452\",\"loanAmount\":10000.0,\"scheduleSettings\":{\"repaymentInstallments\":12,\"repaymentPeriodUnit\":\"MONTHS\"},\"interestSettings\":{\"interestRate\":5.0},\"_LoanAddtionalInfo_Loan_Accounts\":{\"Loan_Rebate_Amount_Loan_Accounts\":\"350\",\"Loan_Purpose_Loan_Accounts\":\"Personal\"}}",resource_fragment:"/api/loans",request_uri:"/api/loans",username:"testapiconsumer"},
+  {occurred_at:"2026-05-05T01:32:18.099Z",response_code:200,resource:"loans",event_source:"API",client_ip:"18.138.95.218",request_method:"POST",request_payload:"{\"productTypeKey\":\"8a8987aa9dec42b1019ded98d5380452\",\"loanAmount\":10000.0,\"disbursementDetails\":{\"expectedDisbursementDate\":\"2026-05-04T00:00:00+10\"},\"scheduleSettings\":{\"repaymentInstallments\":12,\"repaymentPeriodUnit\":\"MONTHS\"},\"interestSettings\":{\"interestRate\":5.0}}",resource_fragment:"/api/loans/schedule:preview",request_uri:"/api/loans/schedule:preview",username:"testapiconsumer"},
+  {occurred_at:"2026-05-05T01:32:14.671Z",response_code:201,resource:"clients",event_source:"API",client_ip:"18.138.95.218",request_method:"POST",request_payload:"{\"preferredLanguage\":\"ENGLISH\",\"_Additional_Personal_Details_Cli\":{\"_NATIONALITY\":\"PH\",\"Nickname_Clients\":\"xyz\"}}",resource_fragment:"/api/clients",request_uri:"/api/clients",username:"testapiconsumer"},
+  {occurred_at:"2026-05-05T01:32:05.409Z",response_code:400,resource:"loans",event_source:"API",client_ip:"18.138.95.218",request_method:"POST",request_payload:"{\"accountHolderType\":\"CLIENT\",\"id\":\"103030393939\",\"accountHolderKey\":\"8a012f379df4417c019df5889718137f\",\"productTypeKey\":\"8a8987aa9dec42b1019ded98d5380452\",\"loanAmount\":10000.0}",resource_fragment:"/api/loans",request_uri:"/api/loans",response_payload:"{\"errors\":[{\"errorCode\":301,\"errorReason\":\"INVALID_CLIENT_ID\"}]}",username:"testapiconsumer"},
+  {occurred_at:"2026-05-05T01:32:00.864Z",response_code:200,resource:"loans",event_source:"API",client_ip:"18.138.95.218",request_method:"POST",request_payload:"{\"productTypeKey\":\"8a8987aa9dec42b1019ded98d5380452\",\"loanAmount\":10000.0,\"scheduleSettings\":{\"repaymentInstallments\":12,\"repaymentPeriodUnit\":\"MONTHS\"},\"interestSettings\":{\"interestRate\":5.0}}",resource_fragment:"/api/loans/schedule:preview",request_uri:"/api/loans/schedule:preview",username:"testapiconsumer"},
+  {occurred_at:"2026-05-05T01:31:57.203Z",response_code:401,resource:"clients",event_source:"API",client_ip:"18.138.95.218",request_method:"POST",request_payload:"{\"preferredLanguage\":\"ENGLISH\",\"_Additional_Personal_Details_Cli\":{\"_NATIONALITY\":\"PH\",\"Nickname_Clients\":\"xyz\"}}",resource_fragment:"/api/clients",request_uri:"/api/clients",response_payload:"{\"errors\":[{\"errorCode\":2,\"errorSource\":\"INVALID_CREDENTIALS\",\"errorReason\":\"INVALID_CREDENTIALS\"}]}",username:""},
+  {occurred_at:"2026-05-05T01:30:32.149Z",response_code:200,resource:"tasks",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"sanitizeDescriptions\":true}",resource_fragment:"dashboard",request_uri:"/desktop/dispatch/GetTasks",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:30:32.149Z",response_code:200,resource:"views",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{}",resource_fragment:"dashboard",request_uri:"/desktop/dispatch/GetFavouriteCustomViews",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:30:18.071Z",response_code:400,resource:"loans",event_source:"API",client_ip:"106.70.123.39",request_method:"POST",request_payload:"{\"accountHolderType\":\"CLIENT\",\"id\":\"103030393939\",\"accountHolderKey\":\"8a012f379df4417c019df5889718137f\",\"productTypeKey\":\"8a8987aa9dec42b1019ded98d5380452\",\"loanAmount\":10000.0}",resource_fragment:"/api/loans",request_uri:"/api/loans",response_payload:"{\"errors\":[{\"errorCode\":301,\"errorReason\":\"INVALID_CLIENT_ID\"}]}",username:"testapiconsumer"},
+  {occurred_at:"2026-05-05T01:30:11.644Z",response_code:400,resource:"loans",event_source:"API",client_ip:"106.70.123.39",request_method:"POST",request_payload:"{\"accountHolderType\":\"CLIENT\",\"id\":\"103030393939\",\"accountHolderKey\":\"8a012f379df4417c019df5889718137f\",\"productTypeKey\":\"8a8987aa9dec42b1019ded98d5380452\",\"loanAmount\":10000.0,\"disbursementDetails\":{\"expectedDisbursementDate\":\"2026-04-04T00:00:00+10:00\"}}",resource_fragment:"/api/loans",request_uri:"/api/loans",response_payload:"{\"errors\":[{\"errorCode\":4,\"errorSource\":\"Invalid date offset for value 2026-04-04T00:00:00+10:00 of expectedDisbursementDate org offset is +11:00\",\"errorReason\":\"INVALID_PARAMETERS\"}]}",username:"testapiconsumer"},
+  {occurred_at:"2026-05-05T01:29:11.619Z",response_code:200,resource:"general",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"dataViewType\":\"LOAN_TRANSACTIONS_LOOKUP\"}",resource_fragment:"viewtransactionchannel.id=8a8987259dbe4ab5019dd975fa220f2b",request_uri:"/desktop/dispatch/GetAdditionalFilterInfo",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:29:11.560Z",response_code:200,resource:"general",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"dataViewType\":\"SAVINGS_TRANSACTIONS_LOOKUP\"}",resource_fragment:"viewtransactionchannel.id=8a8987259dbe4ab5019dd975fa220f2b",request_uri:"/desktop/dispatch/GetAdditionalFilterInfo",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:29:11.546Z",response_code:200,resource:"userroles",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"excludeSupportUserRole\":true}",resource_fragment:"viewtransactionchannel.id=8a8987259dbe4ab5019dd975fa220f2b",request_uri:"/desktop/dispatch/GetRoles",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:29:11.423Z",response_code:200,resource:"transactionchannels",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"transactionChannelId\":\"8a8987259dbe4ab5019dd975fa220f2b\"}",resource_fragment:"viewtransactionchannel.id=8a8987259dbe4ab5019dd975fa220f2b",request_uri:"/desktop/dispatch/GetTransactionChannelDetails",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:29:08.574Z",response_code:200,resource:"general",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"keyList\":[\"8a8986b39ded10f8019ded987db703f7\"],\"keyType\":\"USER\"}",resource_fragment:"admin.tab=financial_setup.subtab=transaction_channel",request_uri:"/desktop/dispatch/NameLookupAction",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:29:04.249Z",response_code:200,resource:"general",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"dataViewType\":\"CURRENCIES\"}",resource_fragment:"admin.tab=financial_setup.subtab=currency",request_uri:"/desktop/dispatch/GetDataItems",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:28:59.463Z",response_code:200,resource:"tasks",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"sanitizeDescriptions\":true}",resource_fragment:"dashboard",request_uri:"/desktop/dispatch/GetTasks",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:28:59.448Z",response_code:200,resource:"views",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{}",resource_fragment:"dashboard",request_uri:"/desktop/dispatch/GetFavouriteCustomViews",username:"arunnair"},
+  // ── Shared events (from both responses, de-duplicated) ──
+  {occurred_at:"2026-05-05T01:08:59.893Z",response_code:200,resource:"apps",event_source:"UI",client_ip:"18.138.95.218",request_method:"GET",request_payload:"{}",resource_fragment:"admin.tab=app_admin",request_uri:"/desktop/dispatch/GetApps",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:08:58.406Z",response_code:200,resource:"apps",event_source:"UI",client_ip:"18.138.95.218",request_method:"POST",request_payload:"{\"source\":\"https://raw.githubusercontent.com/einthusanmoviehd-cloud/mambu-apps/refs/heads/main/ClosedAccountClient.xml\",\"apiUserParams\":{\"appKey\":\"Mambu\"}}",resource_fragment:"admin.tab=app_admin",request_uri:"/desktop/dispatch/StoreApp",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:08:53.801Z",response_code:200,resource:"apps",event_source:"UI",client_ip:"18.138.95.218",request_method:"GET",request_payload:"{\"source\":\"https://raw.githubusercontent.com/einthusanmoviehd-cloud/mambu-apps/refs/heads/main/ClosedAccountClient.xml\"}",resource_fragment:"admin.tab=app_admin",request_uri:"/desktop/dispatch/LoadApp",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:08:34.955Z",response_code:200,resource:"apps",event_source:"UI",client_ip:"18.138.95.218",request_method:"GET",request_payload:"{}",resource_fragment:"admin.tab=app_admin",request_uri:"/desktop/dispatch/GetApps",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:08:33.746Z",response_code:200,resource:"apps",event_source:"UI",client_ip:"18.138.95.218",request_method:"DELETE",request_payload:"{\"appKey\":\"8a8986da9df04871019df0759e16030d\"}",resource_fragment:"admin.tab=app_admin",request_uri:"/desktop/dispatch/DeleteApp",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:08:26.580Z",response_code:200,resource:"apps",event_source:"UI",client_ip:"18.138.95.218",request_method:"GET",request_payload:"{}",resource_fragment:"admin.tab=app_admin",request_uri:"/desktop/dispatch/GetApps",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:07:22.542Z",response_code:200,resource:"apps",event_source:"UI",client_ip:"18.138.95.218",request_method:"GET",request_payload:"{\"appKey\":\"8a8986da9df04871019df0759e16030d\",\"location\":\"CLIENT_VIEW\",\"viewId\":\"8a8987dc9df0d6ad019df1a2c1b018da\"}",resource_fragment:"client.id=8a8987dc9df0d6ad019df1a2c1b018da.type=indiv",request_uri:"/desktop/dispatch/GenerateAppRequest",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:07:20.667Z",response_code:200,resource:"customfields",event_source:"UI",client_ip:"18.138.95.218",request_method:"GET",request_payload:"{\"customFieldKeys\":[\"8a8987259dbe4ab5019dd976016e10c2\",\"8a8987259dbe4ab5019dd976016e10c6\"]}",resource_fragment:"client.id=8a8987dc9df0d6ad019df1a2c1b018da.type=indiv",request_uri:"/desktop/dispatch/GetCustomFieldDependencyInfo",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:07:20.314Z",response_code:200,resource:"customfieldsets",event_source:"UI",client_ip:"18.138.95.218",request_method:"GET",request_payload:"{\"types\":[\"CLIENT_INFO\"],\"loadCustomFieldSelection\":false,\"entityLinkedKey\":\"8a8987259dbe4ab5019dd975fd9d0f32\"}",resource_fragment:"client.id=8a8987dc9df0d6ad019df1a2c1b018da.type=indiv",request_uri:"/desktop/dispatch/GetCustomFieldSets",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:07:19.894Z",response_code:200,resource:"clients",event_source:"UI",client_ip:"18.138.95.218",request_method:"GET",request_payload:"{\"entityKey\":\"8a8987dc9df0d6ad019df1a2c1b018da\",\"dataFields\":[\"ID\",\"CLIENT_ROLE\",\"CREATION_DATE\",\"CLIENT_STATE\",\"GENDER\",\"EMAIL_ADDRESS\"]}",resource_fragment:"client.id=8a8987dc9df0d6ad019df1a2c1b018da.type=indiv",request_uri:"/desktop/dispatch/GetClientExpandedDataItem",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:07:19.396Z",response_code:200,resource:"accounts",event_source:"UI",client_ip:"18.138.95.218",request_method:"GET",request_payload:"{\"fetchLoanAccounts\":true,\"fetchSavingsAccounts\":true,\"loanAccountsFilter\":{\"accountStates\":[\"PENDING_APPROVAL\",\"APPROVED\",\"ACTIVE\",\"ACTIVE_IN_ARREARS\",\"CLOSED\"],\"accountHolderKey\":\"8a8987dc9df0d6ad019df1a2c1b018da\",\"accountHolderType\":\"CLIENT\"}}",resource_fragment:"client.id=8a8987dc9df0d6ad019df1a2c1b018da.type=indiv",request_uri:"/desktop/dispatch/GetAccounts",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:07:19.036Z",response_code:200,resource:"linesofcredit",event_source:"UI",client_ip:"18.138.95.218",request_method:"GET",request_payload:"{\"ownerKey\":\"8a8987dc9df0d6ad019df1a2c1b018da\",\"ownerType\":\"CLIENT\"}",resource_fragment:"client.id=8a8987dc9df0d6ad019df1a2c1b018da.type=indiv",request_uri:"/desktop/dispatch/GetLinesOfCredit",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:07:18.687Z",response_code:200,resource:"loans",event_source:"UI",client_ip:"18.138.95.218",request_method:"GET",request_payload:"{\"clientKey\":\"8a8987dc9df0d6ad019df1a2c1b018da\",\"ownerType\":\"CLIENT\",\"loadSecuredLoanAccountsCount\":true}",resource_fragment:"client.id=8a8987dc9df0d6ad019df1a2c1b018da.type=indiv",request_uri:"/desktop/dispatch/GetSecuredLoanAccountsSummaries",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:07:16.119Z",response_code:200,resource:"customfieldsets",event_source:"UI",client_ip:"18.138.95.218",request_method:"GET",request_payload:"{\"types\":[\"CLIENT_INFO\"]}",resource_fragment:"client.id=8a8987dc9df0d6ad019df1a2c1b018da.type=indiv",request_uri:"/desktop/dispatch/GetCustomFieldSets",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:07:16.119Z",response_code:200,resource:"general",event_source:"UI",client_ip:"18.138.95.218",request_method:"GET",request_payload:"{\"ownerKey\":\"8a8987dc9df0d6ad019df1a2c1b018da\",\"type\":\"CLIENT\"}",resource_fragment:"client.id=8a8987dc9df0d6ad019df1a2c1b018da.type=indiv",request_uri:"/desktop/dispatch/GetDisplaySummary",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:07:15.578Z",response_code:200,resource:"clients",event_source:"UI",client_ip:"18.138.95.218",request_method:"GET",request_payload:"{\"clientKey\":\"8a8987dc9df0d6ad019df1a2c1b018da\"}",resource_fragment:"client.id=8a8987dc9df0d6ad019df1a2c1b018da.type=indiv",request_uri:"/desktop/dispatch/GetClient",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:07:10.019Z",response_code:200,resource:"views",event_source:"UI",client_ip:"18.138.95.218",request_method:"GET",request_payload:"{}",resource_fragment:"dashboard",request_uri:"/desktop/dispatch/GetFavouriteCustomViews",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:07:10.011Z",response_code:200,resource:"tasks",event_source:"UI",client_ip:"18.138.95.218",request_method:"GET",request_payload:"{\"sanitizeDescriptions\":true}",resource_fragment:"dashboard",request_uri:"/desktop/dispatch/GetTasks",username:"arunnair"},
+  {occurred_at:"2026-05-05T01:01:06.159Z",response_code:200,resource:"loans",event_source:"API",client_ip:"18.138.95.218",request_method:"POST",request_payload:"{\"productTypeKey\":\"8a8987aa9dec42b1019ded98d5380452\",\"loanAmount\":10000.0,\"disbursementDetails\":{\"expectedDisbursementDate\":\"2026-05-04T00:00:00+10\"},\"scheduleSettings\":{\"repaymentInstallments\":12,\"repaymentPeriodUnit\":\"MONTHS\"},\"interestSettings\":{\"interestRate\":5.0}}",resource_fragment:"/api/loans/schedule:preview",request_uri:"/api/loans/schedule:preview",username:"testapiconsumer"},
+  {occurred_at:"2026-05-05T01:00:17.281Z",response_code:200,resource:"loanproducts",event_source:"API",client_ip:"18.138.95.218",request_method:"GET",request_payload:"{\"detailsLevel\":[\"FULL\"]}",resource_fragment:"/api/loanproducts/LN_MCL?detailsLevel=FULL",request_uri:"/api/loanproducts/LN_MCL",username:"testapiconsumer"},
+  {occurred_at:"2026-05-05T01:00:10.910Z",response_code:401,resource:"loanproducts",event_source:"API",client_ip:"18.138.95.218",request_method:"GET",request_payload:"{\"detailsLevel\":[\"FULL\"]}",resource_fragment:"/api/loanproducts/LN_MCL?detailsLevel=FULL",request_uri:"/api/loanproducts/LN_MCL",response_payload:"{\"errors\":[{\"errorCode\":2,\"errorSource\":\"INVALID_CREDENTIALS\",\"errorReason\":\"INVALID_CREDENTIALS\"}]}",username:""},
+  {occurred_at:"2026-05-05T00:43:33.356Z",response_code:200,resource:"tasks",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"sanitizeDescriptions\":true}",resource_fragment:"dashboard",request_uri:"/desktop/dispatch/GetTasks",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:43:33.336Z",response_code:200,resource:"views",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{}",resource_fragment:"dashboard",request_uri:"/desktop/dispatch/GetFavouriteCustomViews",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:21:00.515Z",response_code:200,resource:"tasks",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"sanitizeDescriptions\":true}",resource_fragment:"dashboard",request_uri:"/desktop/dispatch/GetTasks",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:21:00.485Z",response_code:200,resource:"views",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{}",resource_fragment:"dashboard",request_uri:"/desktop/dispatch/GetFavouriteCustomViews",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:13:50.268Z",response_code:200,resource:"apiconsumers",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"consumerEncodedKey\":\"8a89877c9deacddd019ded94e85d1438\"}",resource_fragment:"apiconsumerkeys.id=8a89877c9deacddd019ded94e85d1438",request_uri:"/desktop/dispatch/GetApiConsumerKeys",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:13:50.259Z",response_code:200,resource:"apiconsumers",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"encryptedKey\":\"XkplGAxX88AF1dseySGiTAxvDm2PtZwgcJdmgjagPmA6\"}",resource_fragment:"apiconsumerkeys.id=8a89877c9deacddd019ded94e85d1438",request_uri:"/desktop/dispatch/DecryptApiKey",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:13:49.735Z",response_code:200,resource:"apiconsumers",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"consumerName\":\"testapiconsumer\"}",resource_fragment:"apiconsumerkeys.id=8a89877c9deacddd019ded94e85d1438",request_uri:"/desktop/dispatch/GenerateApiConsumerKey",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:13:46.983Z",response_code:200,resource:"apiconsumers",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"consumerEncodedKey\":\"8a89877c9deacddd019ded94e85d1438\"}",resource_fragment:"apiconsumerkeys.id=8a89877c9deacddd019ded94e85d1438",request_uri:"/desktop/dispatch/GetApiConsumerKeys",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:13:44.928Z",response_code:200,resource:"apiconsumers",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{}",resource_fragment:"admin.tab=access.subtab=api_consumers",request_uri:"/desktop/dispatch/GetApiConsumers",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:13:43.024Z",response_code:200,resource:"customfieldsets",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"types\":[\"USER_INFO\"]}",resource_fragment:"editapiconsumer.id=8a89877c9deacddd019ded94e85d1438",request_uri:"/desktop/dispatch/GetCustomFieldSets",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:13:43.017Z",response_code:200,resource:"userroles",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"excludeSupportUserRole\":true}",resource_fragment:"editapiconsumer.id=8a89877c9deacddd019ded94e85d1438",request_uri:"/desktop/dispatch/GetRoles",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:13:42.902Z",response_code:200,resource:"users",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"encodedKey\":\"8a89877c9deacddd019ded94e85d1438\",\"loadCustomFields\":true}",resource_fragment:"editapiconsumer.id=8a89877c9deacddd019ded94e85d1438",request_uri:"/desktop/dispatch/GetApiConsumer",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:13:39.211Z",response_code:200,resource:"apiconsumers",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{}",resource_fragment:"admin.tab=access.subtab=api_consumers",request_uri:"/desktop/dispatch/GetApiConsumers",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:13:36.741Z",response_code:200,resource:"userroles",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"excludeSupportUserRole\":true}",resource_fragment:"editapiconsumer.id=8a8986c79deafa1e019dedfc8bce382c",request_uri:"/desktop/dispatch/GetRoles",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:13:36.633Z",response_code:200,resource:"customfieldsets",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"types\":[\"USER_INFO\"]}",resource_fragment:"editapiconsumer.id=8a8986c79deafa1e019dedfc8bce382c",request_uri:"/desktop/dispatch/GetCustomFieldSets",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:13:36.535Z",response_code:200,resource:"users",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"encodedKey\":\"8a8986c79deafa1e019dedfc8bce382c\",\"loadCustomFields\":true}",resource_fragment:"editapiconsumer.id=8a8986c79deafa1e019dedfc8bce382c",request_uri:"/desktop/dispatch/GetApiConsumer",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:13:33.792Z",response_code:200,resource:"apiconsumers",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{}",resource_fragment:"admin.tab=access.subtab=api_consumers",request_uri:"/desktop/dispatch/GetApiConsumers",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:13:28.325Z",response_code:200,resource:"apiconsumers",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"consumerEncodedKey\":\"8a8986c79deafa1e019dedfc8bce382c\"}",resource_fragment:"apiconsumerkeys.id=8a8986c79deafa1e019dedfc8bce382c",request_uri:"/desktop/dispatch/GetApiConsumerKeys",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:13:21.677Z",response_code:200,resource:"apiconsumers",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{}",resource_fragment:"admin.tab=access.subtab=api_consumers",request_uri:"/desktop/dispatch/GetApiConsumers",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:13:19.364Z",response_code:200,resource:"loans",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"includeDisabled\":false,\"loadTemplates\":true,\"branchFilterKey\":\"ALL_ENTITIES_KEY\"}",resource_fragment:"admin.tab=products_admin.subtab=loans",request_uri:"/desktop/dispatch/GetLoanProducts",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:13:14.422Z",response_code:200,resource:"views",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{}",resource_fragment:"dashboard",request_uri:"/desktop/dispatch/GetFavouriteCustomViews",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:13:14.362Z",response_code:200,resource:"tasks",event_source:"UI",client_ip:"106.70.123.39",request_method:"GET",request_payload:"{\"sanitizeDescriptions\":true}",resource_fragment:"dashboard",request_uri:"/desktop/dispatch/GetTasks",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:13:10.989Z",response_code:200,resource:"login",event_source:"UI",client_ip:"106.70.123.39",request_method:"POST",request_payload:"{\"username\":[\"arunnair\"],\"loginType\":[\"onlineLogin\"]}",resource_fragment:"/servlet/login",request_uri:"/servlet/login",response_payload:"SUCCESS",username:"arunnair"},
+  {occurred_at:"2026-05-05T00:13:00.321Z",response_code:401,resource:"login",event_source:"UI",client_ip:"106.70.123.39",request_method:"POST",request_payload:"{\"username\":[\"arunnair\"],\"loginType\":[\"onlineLogin\"]}",resource_fragment:"/servlet/login",request_uri:"/servlet/login",response_payload:"FAIL",username:""},
+  {occurred_at:"2026-05-05T00:12:55.759Z",response_code:401,resource:"login",event_source:"UI",client_ip:"106.70.123.39",request_method:"POST",request_payload:"{\"username\":[\"arunnair\"],\"loginType\":[\"onlineLogin\"]}",resource_fragment:"/servlet/login",request_uri:"/servlet/login",response_payload:"FAIL",username:""}
+];
+
+const PAGE_SIZE = 15;
+let filtered = [], sortField = 'occurred_at', sortAsc = false;
+let currentPage = 1, expandedIdx = null, activeChip = '', hasSearched = false;
+
+// Populate resource dropdown
+(function(){
+  const res = [...new Set(ALL.map(e=>e.resource))].sort();
+  const sel = document.getElementById('fResource');
+  res.forEach(r => { const o=document.createElement('option'); o.value=r; o.textContent=r; sel.appendChild(o); });
+})();
+
+function doSearch() {
+  const btn=document.getElementById('searchBtn');
+  const sp=document.getElementById('spin');
+  const bt=document.getElementById('btnTxt');
+  const bar=document.getElementById('loadBar');
+  const msg=document.getElementById('loadMsg');
+  const sub=document.getElementById('loadSub');
+
+  btn.disabled=true; sp.classList.add('on'); bt.textContent='Fetching…';
+  bar.style.width='0%';
+  showPanel('loading');
+  document.getElementById('summaryBar').innerHTML='';
+  document.getElementById('resultCount').textContent='';
+
+  const steps=[
+    {w:'20%',m:'Connecting to audit trail API…',   s:'Authenticating request',        d:80},
+    {w:'45%',m:'Fetching audit events…',            s:'Applying date range filter',    d:320},
+    {w:'70%',m:'Processing results…',               s:'Sorting by timestamp',          d:620},
+    {w:'90%',m:'Building response…',                s:`${ALL.length} events found`,    d:880},
+    {w:'100%',m:'Rendering table…',                 s:'Done',                          d:1050},
+  ];
+  steps.forEach(({w,m,s,d})=>setTimeout(()=>{bar.style.width=w;msg.textContent=m;sub.textContent=s;},d));
+
+  setTimeout(()=>{
+    btn.disabled=false; sp.classList.remove('on'); bt.textContent='Search';
+    hasSearched=true; activeChip='';
+    runFilter();
+  },1200);
+}
+
+function runFilter(){
+  const from=document.getElementById('fromDate').value;
+  const to=document.getElementById('toDate').value;
+  const user=document.getElementById('fUser').value.trim().toLowerCase();
+  const src=document.getElementById('fSource').value;
+  const mth=document.getElementById('fMethod').value;
+  const res=document.getElementById('fResource').value;
+  const st=document.getElementById('fStatus').value;
+
+  filtered=ALL.filter(e=>{
+    const t=new Date(e.occurred_at);
+    if(from && t<new Date(from)) return false;
+    if(to   && t>new Date(to))   return false;
+    if(user && !(e.username||'').toLowerCase().includes(user)) return false;
+    if(src  && e.event_source!==src) return false;
+    if(mth  && e.request_method!==mth) return false;
+    if(res  && e.resource!==res) return false;
+    if(st==='2xx' && (e.response_code<200||e.response_code>=300)) return false;
+    if(st==='4xx' && (e.response_code<400||e.response_code>=500)) return false;
+    if(activeChip==='__err__' && e.response_code<400) return false;
+    if(activeChip==='__api__' && e.event_source!=='API') return false;
+    if(activeChip && activeChip!=='__err__' && activeChip!=='__api__' && e.resource!==activeChip) return false;
+    return true;
+  });
+
+  filtered.sort((a,b)=>{
+    let va=a[sortField]||'', vb=b[sortField]||'';
+    if(typeof va==='string') va=va.toLowerCase();
+    if(typeof vb==='string') vb=vb.toLowerCase();
+    return va<vb?(sortAsc?-1:1):va>vb?(sortAsc?1:-1):0;
+  });
+
+  currentPage=1; expandedIdx=null;
+  if(filtered.length===0){ showPanel('empty'); document.getElementById('summaryBar').innerHTML=''; document.getElementById('resultCount').textContent='0 events'; }
+  else { showPanel('table'); renderTable(); renderChips(); document.getElementById('resultCount').textContent=`${filtered.length} of ${ALL.length} events`; }
+}
+
+function showPanel(w){
+  document.getElementById('stInit').style.display  = w==='initial' ?'flex':'none';
+  document.getElementById('stLoad').style.display  = w==='loading' ?'flex':'none';
+  document.getElementById('stEmpty').style.display = w==='empty'   ?'flex':'none';
+  document.getElementById('tblWrap').classList.toggle('visible', w==='table');
+}
+
+function resetAll(){
+  document.getElementById('fromDate').value='2026-05-05T00:00';
+  document.getElementById('toDate').value='2026-05-05T02:00';
+  ['fUser','fSource','fMethod','fResource','fStatus'].forEach(id=>document.getElementById(id).value='');
+  activeChip=''; hasSearched=false; filtered=[]; expandedIdx=null;
+  document.getElementById('summaryBar').innerHTML='';
+  document.getElementById('resultCount').textContent='';
+  showPanel('initial');
+}
+
+function sortBy(field){
+  if(!hasSearched) return;
+  sortAsc = sortField===field ? !sortAsc : false;
+  sortField=field;
+  document.querySelectorAll('thead th').forEach(th=>th.classList.remove('sorted'));
+  const el=document.getElementById('th-'+field);
+  if(el) el.classList.add('sorted');
+  runFilter();
+}
+
+function toggleRow(idx){ expandedIdx=expandedIdx===idx?null:idx; renderTable(); }
+
+function filterChip(val){ activeChip=activeChip===val?'':val; runFilter(); renderChips(); }
+
+function renderChips(){
+  const errors=ALL.filter(e=>e.response_code>=400).length;
+  const apiCalls=ALL.filter(e=>e.event_source==='API').length;
+  const counts={};
+  ALL.forEach(e=>{ counts[e.resource]=(counts[e.resource]||0)+1; });
+  const top=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,7);
+
+  let h='';
+  if(errors>0){
+    const a=activeChip==='__err__';
+    h+=`<div class="chip${a?' active':''}" onclick="filterChip('__err__')">
+      <span style="color:#c0392b;font-size:10px">●</span> Errors <span class="chip-count" style="color:#c0392b">${errors}</span>
+    </div>`;
+  }
+  if(apiCalls>0){
+    const a=activeChip==='__api__';
+    h+=`<div class="chip${a?' active':''}" onclick="filterChip('__api__')">
+      <span style="color:#7c4dbe;font-size:10px">●</span> API calls <span class="chip-count" style="color:#7c4dbe">${apiCalls}</span>
+    </div>`;
+  }
+  top.forEach(([res,cnt])=>{
+    const a=activeChip===res;
+    h+=`<div class="chip${a?' active':''}" onclick="filterChip('${res}')">${res} <span class="chip-count">${cnt}</span></div>`;
+  });
+  document.getElementById('summaryBar').innerHTML=h;
+}
+
+function renderTable(){
+  const start=(currentPage-1)*PAGE_SIZE;
+  const page=filtered.slice(start,start+PAGE_SIZE);
+  let h='';
+
+  page.forEach((e,i)=>{
+    const absIdx=start+i;
+    const isExp=expandedIdx===absIdx;
+    const dt=new Date(e.occurred_at);
+    const date=dt.toLocaleDateString('en-AU',{day:'2-digit',month:'short',year:'numeric'});
+    const time=dt.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+    const sc=e.response_code>=400?'s-4xx':e.response_code===201?'s-201':'s-2xx';
+    const hasP=e.request_payload&&e.request_payload!=='{}';
+    const hasR=!!e.response_payload;
+
+    h+=`<tr class="${isExp?'row-exp':''}" onclick="toggleRow(${absIdx})">
+      <td style="text-align:center">${(hasP||hasR)?`<span class="chevron"${isExp?' style="transform:rotate(180deg)"':''}>▼</span>`:''}</td>
+      <td class="td-time"><div class="dp">${date}</div><div class="tp">${time}</div></td>
+      <td><span class="badge s-${e.event_source}">${e.event_source}</span></td>
+      <td><span class="badge m-${e.request_method}">${e.request_method}</span></td>
+      <td class="td-resource">${e.resource}</td>
+      <td class="td-uri">${e.request_uri}</td>
+      <td><span class="badge ${sc}">${e.response_code}</span></td>
+      <td class="td-user">${e.username?e.username:'<span class="td-anon">anonymous</span>'}</td>
+      <td class="td-ip">${e.client_ip}</td>
+    </tr>`;
+
+    if(isExp&&(hasP||hasR)){
+      h+=`<tr class="payload-row"><td colspan="9"><div class="payload-inner">`;
+      if(hasP) h+=`<div class="payload-block"><div class="payload-label">Request payload</div><div class="payload-code">${esc(pretty(e.request_payload))}</div></div>`;
+      if(hasR) h+=`<div class="payload-block"><div class="payload-label">Response payload</div><div class="payload-code">${esc(pretty(e.response_payload))}</div></div>`;
+      if(e.resource_fragment&&e.resource_fragment!==e.request_uri) h+=`<div class="payload-block" style="flex:0 1 200px"><div class="payload-label">Context</div><div class="payload-code">${esc(e.resource_fragment)}</div></div>`;
+      h+=`</div></td></tr>`;
+    }
+  });
+
+  document.getElementById('tbody').innerHTML=h;
+  renderPgn();
+}
+
+function pretty(s){ try{return JSON.stringify(JSON.parse(s),null,2);}catch{return s;} }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderPgn(){
+  const total=filtered.length, pages=Math.ceil(total/PAGE_SIZE);
+  const s=(currentPage-1)*PAGE_SIZE+1, e=Math.min(currentPage*PAGE_SIZE,total);
+  let b=`<button class="page-btn" onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''}>‹</button>`;
+  for(let p=1;p<=pages;p++){
+    if(pages>7&&p>2&&p<pages-1&&Math.abs(p-currentPage)>1){if(p===3||p===pages-2) b+=`<span style="padding:0 4px;color:#aab2bc;font-size:11px">…</span>`;continue;}
+    b+=`<button class="page-btn${p===currentPage?' active':''}" onclick="goPage(${p})">${p}</button>`;
+  }
+  b+=`<button class="page-btn" onclick="goPage(${currentPage+1})" ${currentPage===pages?'disabled':''}>›</button>`;
+  document.getElementById('pgn').innerHTML=`<span class="pagination-info">Showing ${s}–${e} of ${total} events</span><div class="page-btns">${b}</div>`;
+}
+
+function goPage(p){
+  const pages=Math.ceil(filtered.length/PAGE_SIZE);
+  if(p<1||p>pages) return;
+  currentPage=p; expandedIdx=null; renderTable();
+}
+</script>
+</body>
+</html>
